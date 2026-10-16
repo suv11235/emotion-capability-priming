@@ -1,12 +1,3 @@
-"""Verify the mapping between hidden states and decoder-layer outputs.
-
-For a direction measured at hidden_states[L], the matching decoder block is
-layers[L - 1]. The check compares direct post-hook layer outputs rather than
-hidden_states, which are recorded before user forward hooks run.
-
-Reports the layer-index mapping and the measured projection shift from a
-correctly placed hook versus one placed a layer later.
-"""
 import argparse
 import torch
 
@@ -34,19 +25,15 @@ vec = torch.load(args.directions, weights_only=False)["directions"][L].float()
 vec = (vec / vec.norm()).to(model.device, dtype)
 v32 = vec.float()
 
-
 def inputs_for(prompt):
     msgs = [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
     return processor.apply_chat_template(msgs, add_generation_prompt=True, tokenize=True,
                                          return_dict=True, return_tensors="pt").to(model.device)
 
-
 def out_tensor(output):
     return output[0] if isinstance(output, tuple) else output
 
-
 def run(inp, push_layer=None, want_hidden=False):
-    """Forward pass; returns hidden_states (optional) and the raw post-hook output of every layer."""
     raw, handles = {}, []
     if push_layer is not None:
         def push(module, inputs, output):
@@ -54,7 +41,7 @@ def run(inp, push_layer=None, want_hidden=False):
             return (h,) + output[1:] if isinstance(output, tuple) else h
         handles.append(layers[push_layer].register_forward_hook(push))
     for j, layer in enumerate(layers):
-        # registered after the push hook, so it sees the pushed output
+
         handles.append(layer.register_forward_hook(
             lambda m, i, o, j=j: raw.__setitem__(j, out_tensor(o).detach().float().clone())))
     try:
@@ -64,7 +51,6 @@ def run(inp, push_layer=None, want_hidden=False):
         for h in handles:
             h.remove()
     return (out.hidden_states if want_hidden else None), raw
-
 
 inp0 = inputs_for(PROMPTS[0])
 hs, raw0 = run(inp0, want_hidden=True)

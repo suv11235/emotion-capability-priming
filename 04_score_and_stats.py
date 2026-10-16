@@ -1,17 +1,3 @@
-"""Step 4: score the raw answers and run the statistics. Runs on saved response records.
-
-    python 04_score_and_stats.py out/mmlu/records.jsonl
-
-Reads : records.jsonl from step 3 (or results/mmlu_sad/mmlu_records.jsonl)
-Prints: a table  strength | accuracy | change | McNemar p | BH q | parse% | trunc%
-Writes: <same folder>/scores.csv
-
-Tests (all planned before the runs):
-  * paired: every strength answers the same questions as strength 0
-  * McNemar: only looks at questions whose right/wrong status changed
-  * Benjamini-Hochberg: corrects across all nonzero strengths included in the file
-  * quality gate: parse failures and truncations must each be under 10%
-"""
 import json
 import sys
 from math import comb
@@ -30,19 +16,16 @@ for k, v in pd.DataFrame([outcome(r.response, r.gold, r.truncated) for r in df.i
     if k != "truncated":
         df[k] = v.values
 
-
 def mcnemar(base, cond):
-    b = int((base & ~cond).sum())     # right at 0, wrong now
-    c = int((~base & cond).sum())     # wrong at 0, right now
+    b = int((base & ~cond).sum())
+    c = int((~base & cond).sum())
     n = b + c
     if n == 0:
         return 1.0
     tail = sum(comb(n, i) for i in range(min(b, c) + 1))
     return min(1.0, 2 * tail / 2 ** n)
 
-
 def bh(p):
-    """Benjamini-Hochberg q-values."""
     p = np.asarray(p)
     order = np.argsort(p)
     q = p[order] * len(p) / (np.arange(len(p)) + 1)
@@ -50,7 +33,6 @@ def bh(p):
     out = np.empty(len(p))
     out[order] = np.minimum(q, 1)
     return out
-
 
 wide = df.pivot(index="question_id", columns="alpha_multiplier", values="correct").astype(bool)
 base = wide[0.0].values
@@ -72,7 +54,6 @@ res = pd.DataFrame(rows)
 print(res.round(3).to_string(index=False))
 res.to_csv(path.rsplit("/", 1)[0] + "/scores.csv", index=False)
 
-# curved (quadratic) fit: accuracy ~ a + b*x + c*x^2. Negative c = hill shape.
 x, y = res.strength.values, res.accuracy.values
 c2, c1, c0 = np.polyfit(x, y, 2)
 r2 = 1 - ((y - np.polyval([c2, c1, c0], x)) ** 2).sum() / ((y - y.mean()) ** 2).sum()

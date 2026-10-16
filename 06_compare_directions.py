@@ -1,24 +1,9 @@
-"""Step 6: compare several directions (sad, other emotions, random) on one table.
-
-    python 06_compare_directions.py out/mmlu/records.jsonl out/mmlu_random0/records.jsonl ... \
-        --out compare.md --fig compare.png
-
-Every records file must contain the same questions. The baseline is the --baseline
-direction at multiplier 0 (default "sad"); if two files repeat a condition, the first
-file wins. For each (direction, multiplier) it prints accuracy with a 95% Wilson
-interval, the paired change against the baseline, right->wrong and wrong->right
-counts, an exact McNemar p, and the parse-failure, truncation and length rates.
-
-The 95% CI is for each accuracy on its own, not for the change from the
-baseline, and the p-values are not corrected for multiple comparisons.
-"""
 import argparse
 import collections
 import json
 import math
 
 from common import outcome
-
 
 def wilson(k, n, z=1.96):
     p = k / n
@@ -27,13 +12,11 @@ def wilson(k, n, z=1.96):
     h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
     return (c - h) / d, (c + h) / d
 
-
 def mcnemar_p(b, c):
     n = b + c
     if n == 0:
         return 1.0
     return min(1.0, 2 * sum(math.comb(n, i) for i in range(min(b, c) + 1)) / 2 ** n)
-
 
 ap = argparse.ArgumentParser()
 ap.add_argument("records", nargs="+")
