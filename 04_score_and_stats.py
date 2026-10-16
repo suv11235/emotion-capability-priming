@@ -1,32 +1,39 @@
-import argparse
+"""Step 4: score the raw answers and run the statistics. Runs on saved response records.
+
+    python 04_score_and_stats.py out/mmlu/records.jsonl
+
+Reads : records.jsonl from step 3 (or results/mmlu_sad/mmlu_records.jsonl)
+Prints: a table  strength | accuracy | change | McNemar p | BH q | parse% | trunc%
+Writes: <same folder>/scores.csv
+
+Tests (all planned before the runs):
+  * paired: every strength answers the same questions as strength 0
+  * McNemar: only looks at questions whose right/wrong status changed
+  * Benjamini-Hochberg: corrects across all nonzero strengths included in the file
+  * quality gate: parse failures and truncations must each be under 10%
+"""
 import json
+import sys
 from math import comb
 import numpy as np
 import pandas as pd
 
 from common import outcome
 
-p = argparse.ArgumentParser()
-p.add_argument("records")
-p.add_argument("--direction", default=None)
-args = p.parse_args()
-
-records = [json.loads(line) for line in open(args.records)]
-df = pd.DataFrame(records)
-if args.direction is not None:
-    df = df[df.direction == args.direction].copy()
-
-scores = pd.DataFrame(
-    [outcome(r.response, r.gold, r.truncated) for r in df.itertuples()]
-)
-for col in scores.columns:
-    if col != "truncated":
-        df[col] = scores[col].values
+path = sys.argv[1]
+direction = sys.argv[2] if len(sys.argv) > 2 else None
+recs = [json.loads(line) for line in open(path)]
+df = pd.DataFrame(recs)
+if direction:
+    df = df[df.direction == direction]
+for k, v in pd.DataFrame([outcome(r.response, r.gold, r.truncated) for r in df.itertuples()]).items():
+    if k != "truncated":
+        df[k] = v.values
 
 
 def mcnemar(base, cond):
-    b = int((base & ~cond).sum())
-    c = int((~base & cond).sum())
+    b = int((base & ~cond).sum())     # right at 0, wrong now
+    c = int((~base & cond).sum())     # wrong at 0, right now
     n = b + c
     if n == 0:
         return 1.0
@@ -34,55 +41,39 @@ def mcnemar(base, cond):
     return min(1.0, 2 * tail / 2 ** n)
 
 
-def bh(values):
-    values = np.asarray(values)
-    order = np.argsort(values)
-    ranked = values[order] * len(values) / (np.arange(len(values)) + 1)
-    ranked = np.minimum.accumulate(ranked[::-1])[::-1]
-    out = np.empty(len(values))
-    out[order] = np.minimum(ranked, 1)
+def bh(p):
+    """Benjamini-Hochberg q-values."""
+    p = np.asarray(p)
+    order = np.argsort(p)
+    q = p[order] * len(p) / (np.arange(len(p)) + 1)
+    q = np.minimum.accumulate(q[::-1])[::-1]
+    out = np.empty(len(p))
+    out[order] = np.minimum(q, 1)
     return out
 
 
 wide = df.pivot(index="question_id", columns="alpha_multiplier", values="correct").astype(bool)
 base = wide[0.0].values
-mults = [x for x in wide.columns if x != 0.0]
-pvals = [mcnemar(base, wide[x].values) for x in mults]
+mults = [m for m in wide.columns if m != 0.0]
+pvals = [mcnemar(base, wide[m].values) for m in mults]
 qvals = dict(zip(mults, bh(pvals)))
 pvals = dict(zip(mults, pvals))
 
 rows = []
-for strength, group in df.groupby("alpha_multiplier"):
-    if strength == 0:
-        right_to_wrong = 0
-        wrong_to_right = 0
-    else:
-        cond = wide[strength].values
-        right_to_wrong = int((base & ~cond).sum())
-        wrong_to_right = int((~base & cond).sum())
-    rows.append(
-        {
-            "strength": strength,
-            "n": len(group),
-            "accuracy": group.correct.mean(),
-            "change_pts": 100 * (group.correct.mean() - base.mean()) if strength != 0 else np.nan,
-            "mcnemar_p": pvals.get(strength, np.nan),
-            "bh_q": qvals.get(strength, np.nan),
-            "right_to_wrong": right_to_wrong,
-            "wrong_to_right": wrong_to_right,
-            "parse_fail_pct": 100 * group.parse_failure.mean(),
-            "truncated_pct": 100 * group.truncated.mean(),
-            "mean_tokens": group.n_new_tokens.mean(),
-            "passes_gate": bool(group.parse_failure.mean() < 0.10 and group.truncated.mean() < 0.10),
-        }
-    )
+for m, g in df.groupby("alpha_multiplier"):
+    rows.append(dict(
+        strength=m, n=len(g), accuracy=g.correct.mean(),
+        change_pts=100 * (g.correct.mean() - base.mean()) if m != 0 else np.nan,
+        mcnemar_p=pvals.get(m, np.nan), bh_q=qvals.get(m, np.nan),
+        parse_fail_pct=100 * g.parse_failure.mean(), truncated_pct=100 * g.truncated.mean(),
+        mean_tokens=g.n_new_tokens.mean(),
+        passes_gate=bool(g.parse_failure.mean() < .10 and g.truncated.mean() < .10)))
+res = pd.DataFrame(rows)
+print(res.round(3).to_string(index=False))
+res.to_csv(path.rsplit("/", 1)[0] + "/scores.csv", index=False)
 
-result = pd.DataFrame(rows).sort_values("strength")
-print(result.round(3).to_string(index=False))
-result.to_csv(args.records.rsplit("/", 1)[0] + "/scores.csv", index=False)
-
-x = result.strength.values
-y = result.accuracy.values
+# curved (quadratic) fit: accuracy ~ a + b*x + c*x^2. Negative c = hill shape.
+x, y = res.strength.values, res.accuracy.values
 c2, c1, c0 = np.polyfit(x, y, 2)
 r2 = 1 - ((y - np.polyval([c2, c1, c0], x)) ** 2).sum() / ((y - y.mean()) ** 2).sum()
-print(f"quadratic term {c2:.4f}, R^2 {r2:.2f}, peak {-c1 / (2 * c2):.2f}")
+print(f"\nquadratic term {c2:.4f}, R^2 {r2:.2f}, peak at strength {-c1 / (2 * c2):.2f}")
