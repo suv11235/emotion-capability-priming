@@ -1,0 +1,15 @@
+category,n,accuracy
+math,121,0.785
+physics,110,0.627
+chemistry,95,0.600
+law,92,0.239
+psychology,75,0.533
+engineering,73,0.452
+economics,72,0.583
+other,71,0.465
+biology,64,0.688
+business,63,0.698
+health,57,0.456
+philosophy,41,0.317
+history,36,0.250
+computer science,30,0.667

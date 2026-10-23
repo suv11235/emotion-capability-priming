@@ -1,0 +1,3 @@
+scorer,correct,accuracy,no_parsed_answer
+independent regex (this script),547,0.547 (95% CI 0.516 to 0.578),6
+strict `Answer: X` rule,546,0.546,6
