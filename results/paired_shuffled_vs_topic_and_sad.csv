@@ -1,0 +1,5 @@
+direction_a,direction_b,multiplier,paired_questions,accuracy_a,accuracy_b,accuracy_difference_a_minus_b,a_right_b_wrong,a_wrong_b_right,mcnemar_p_uncorrected,paired_ci_low,paired_ci_high
+semantic_shuffled,semantic_topic,-8,1000,0.529,0.501,+0.028,103,75,0.0427,+0.002,+0.054
+semantic_shuffled,semantic_topic,+8,1000,0.532,0.490,+0.042,121,79,0.00363,+0.015,+0.070
+semantic_shuffled,sad,-8,1000,0.529,0.517,+0.012,111,99,0.448,-0.016,+0.040
+semantic_shuffled,sad,+8,1000,0.532,0.502,+0.030,115,85,0.04,+0.002,+0.057

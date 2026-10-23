@@ -1,0 +1,6 @@
+direction,multiplier,seed_count,question_count,mean_accuracy,seed_accuracy_sd,difference_vs_baseline,paired_ci_low,paired_ci_high,pass_at_k,majority_accuracy,always_correct,never_correct,mean_tokens,seed_1_accuracy,seed_2_accuracy,seed_3_accuracy,seed_4_accuracy,seed_5_accuracy
+sad,-8,5,300,0.521,0.022,-0.053,-0.081,-0.024,0.713,0.533,0.343,0.287,389,0.530,0.503,0.533,0.547,0.493
+sad,-4,5,300,0.554,0.013,-0.020,-0.043,+0.004,0.720,0.583,0.383,0.280,358,0.563,0.570,0.553,0.547,0.537
+sad,+0,5,300,0.574,0.023,,,,0.747,0.597,0.387,0.253,327,0.593,0.557,0.590,0.587,0.543
+sad,+4,5,300,0.534,0.017,-0.040,-0.067,-0.016,0.697,0.543,0.360,0.303,316,0.523,0.553,0.550,0.517,0.527
+sad,+8,5,300,0.507,0.025,-0.067,-0.103,-0.035,0.650,0.520,0.350,0.350,316,0.507,0.540,0.513,0.503,0.470

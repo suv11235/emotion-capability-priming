@@ -3,7 +3,7 @@ import collections
 import json
 import math
 
-from common import outcome
+from common import mcnemar_p, outcome
 
 def wilson(k, n, z=1.96):
     p = k / n
@@ -11,12 +11,6 @@ def wilson(k, n, z=1.96):
     c = p + z * z / (2 * n)
     h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
     return (c - h) / d, (c + h) / d
-
-def mcnemar_p(b, c):
-    n = b + c
-    if n == 0:
-        return 1.0
-    return min(1.0, 2 * sum(math.comb(n, i) for i in range(min(b, c) + 1)) / 2 ** n)
 
 ap = argparse.ArgumentParser()
 ap.add_argument("records", nargs="+")
@@ -76,7 +70,14 @@ if a.fig:
         x = [r["m"] for r in rs]
         for i, key in enumerate(["acc", "trunc", "tokens"]):
             y = [100 * r[key] if key != "tokens" else r[key] for r in rs]
-            ax[i].plot(x, y, "-o" if len(rs) > 1 else "o", lw=2.5 if d == a.baseline else 1.2, label=d)
+            style = dict(fmt="-o" if len(rs) > 1 else "o", lw=2.5 if d == a.baseline else 1.2, label=d)
+            if key == "acc":
+                err = [[100 * (r["acc"] - r["ci"][0]) for r in rs], [100 * (r["ci"][1] - r["acc"]) for r in rs]]
+                ax[i].errorbar(x, y, yerr=err, capsize=3, **style)
+            else:
+                ax[i].errorbar(x, y, **style)
+    b = next(r for r in rows if r["d"] == a.baseline and r["m"] == 0.0)
+    ax[0].axhspan(100 * b["ci"][0], 100 * b["ci"][1], color="grey", alpha=0.15, label="no-push 95% CI")
     for axis, title in zip(ax, ["Accuracy (%)", "Hit token limit (%)", "Mean tokens"]):
         axis.set_xlabel("push strength (multiples of delta)")
         axis.set_ylabel(title)
